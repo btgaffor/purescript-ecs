@@ -24,8 +24,6 @@ instance showEntity :: Show Entity where
 
 -- storage
 
--- data Storage c = Storage c
-
 class F a b | a -> b
 instance f1 :: F Int Boolean
 
@@ -33,17 +31,36 @@ f :: forall x. F Int x => x -> String
 f n = "hi"
 -- a = (f 3)
 
-class Storage c
+-- class (Elem (Storage c) ~ c) => Component c where
+--   type Storage c
+
+data Map c = Map c
+
+unMap :: forall c. Map c -> c
+unMap (Map c) = c
+
+class Storage s
+
+instance mapStorage :: Storage (Map (DataMap.Map Entity c))
+
+class ExplGet s where
+  explGet :: forall c. s c -> Entity -> c
+
+instance explGetMap :: ExplGet (DataMap.Map Entity) where
+  explGet map entity = unsafePartial (fromJust (DataMap.lookup entity map))
+
+class Functor2 f where
+  map :: forall a b. (a -> b) -> f a -> f b
 
 class Has w c where
-  getStore :: System w (DataMap.Map Entity c)
+  getStore :: System w (Map (DataMap.Map Entity c))
 
 -- get shouldn't care what getStore returns as long as it has an instance of ExplGet so we know we can call explGet on it *****************************
 -- this will crash if there is no store for that component
 get :: forall w c. Has w c => Entity -> System w c
 get entity = do
   s <- getStore
-  pure $ unsafePartial (fromJust (DataMap.lookup entity s))
+  pure $ unsafePartial (fromJust (DataMap.lookup entity (unMap s)))
 
 -- components
 
@@ -62,10 +79,10 @@ instance showWorld :: Show World where
   show (World world) = show world
 
 instance hasWorldPosition :: Has World Position where
-  getStore = asks (\(World world) -> world.positions)
+  getStore = asks (\(World world) -> Map world.positions)
 
 instance hasWorldVelocity :: Has World Velocity where
-  getStore = asks (\(World world) -> world.velocities)
+  getStore = asks (\(World world) -> Map world.velocities)
 
 -- instance hasWorldTuple :: Has World (Tuple a b) where
 --   getStore = lift2 tuple2 getStore getStore
