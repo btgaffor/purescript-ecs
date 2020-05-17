@@ -4,6 +4,7 @@ import Prelude
 
 import Control.Apply (lift2)
 import Control.Monad.Reader (ReaderT(..), asks, runReaderT)
+import Data.Either (Either(..))
 import Data.Map as DataMap
 import Data.Maybe (Maybe, fromJust)
 import Data.Tuple (Tuple(..))
@@ -11,6 +12,8 @@ import Data.Tuple.Nested (tuple2)
 import Effect (Effect)
 import Effect.Console (log)
 import Partial.Unsafe (unsafePartial)
+import Path (type (/), BadTime(..), Param(..), S, parseUrl)
+import Type.Prelude (Proxy(..))
 
 -- core
 
@@ -95,8 +98,31 @@ runGame = do
   Position p <- get (Entity 5)
   Velocity v <- get (Entity 5)
   pure $ p + v
+-- main :: Effect Unit
+-- main = do
+--   p <- runReaderT runGame initWorld
+--   log $ show $ p
+
+-- myRouteP :: Proxy MyRoute
+-- myRouteP = Proxy
+
+-- main :: Effect Unit
+-- main = do
+--   case (parseUrl myRouteP "hello/world") of
+--     Left err -> log "error"
+--     Right obj -> log $ show obj
+
+type MyRoute = S "hello" / S "world" / Param "id" Int / Param "name" String
+
+myRouteP :: Proxy MyRoute
+myRouteP = Proxy
+
+testUrl :: String
+testUrl = "/hello/world/1/joe"
 
 main :: Effect Unit
 main = do
-  p <- runReaderT runGame initWorld
-  log $ show $ p
+  case parseUrl myRouteP testUrl of
+    Left e -> log $ "oops: " <> show e
+    Right result ->
+      log $ show result

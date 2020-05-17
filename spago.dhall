@@ -4,7 +4,17 @@ You can edit this file as you like.
 -}
 { name = "my-project"
 , dependencies =
-  [ "console", "effect", "ordered-collections", "psci-support", "transformers" ]
+  [ "console"
+  , "effect"
+  , "integers"
+  , "ordered-collections"
+  , "psci-support"
+  , "record"
+  , "strings"
+  , "test-unit"
+  , "transformers"
+  , "typelevel-prelude"
+  ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
 }
