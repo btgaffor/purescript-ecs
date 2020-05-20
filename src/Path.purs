@@ -50,8 +50,10 @@ type BadTimes
 
 -- | a URL Parameter argument, by the label that should be used in the params record
 -- | and type that this param should be parsed to.
-data Param (label :: Symbol) ty
+data Param (label :: Symbol) paramType
   = Param
+
+data Anything = Anything
 
 -- | another type operator alias for Tuple /\ for familiarity convenience
 infixr 6 type Tuple as /
@@ -76,6 +78,18 @@ instance intParseParam :: ParseParam Int where
         <> s
         <> " into integer"
 
+data Choice = A | B
+instance showChoice :: Show Choice where
+  show c = case c of
+    A -> "A"
+    B -> "B"
+
+instance choiceParseParam :: ParseParam Choice where
+  parseParam s = case s of
+    "A" -> pure A
+    "B" -> pure B
+    _ -> throwError <<< pure <<< ParamParseError $ s <> " is not a Choice"
+
 -- | Typeclass to parse a URL segment into a Record.Builder that extracts out parameters
 class ParseURLImpl xs (from :: #Type) (to :: #Type) | xs -> from to where
   parseURLImpl ::
@@ -97,8 +111,7 @@ instance tupleParseURL ::
     pure $ { builder: left.builder <<< right.builder, remaining: right.remaining }
 
 instance segmentParseURL ::
-  ( IsSymbol segment
-    ) =>
+  (IsSymbol segment) =>
   ParseURLImpl (SProxy segment) from from where
   parseURLImpl _ s = case stripPrefix (Pattern $ "/" <> segment) s of
     Nothing ->
@@ -111,24 +124,25 @@ instance segmentParseURL ::
     where
     segment = reflectSymbol (SProxy :: SProxy segment)
 
+instance anythingParseURL :: ParseURLImpl Anything from from where
+  parseURLImpl _ s = do
+    pure { builder: identity, remaining: split.after }
+    where
+    s' = drop 1 s
+    split = case indexOf (Pattern "/") s' of
+      Just index -> splitAt index s'
+      Nothing -> { before: s', after: "" }
+
 instance paramParseURL ::
   ( IsSymbol label
-  , ParseParam ty
+  , ParseParam paramType
   , Lacks label from
-  , Cons label ty from to
+  , Cons label paramType from to
   ) =>
-  ParseURLImpl (Param label ty) from to where
+  ParseURLImpl (Param label paramType) from to where
   parseURLImpl _ s = do
-    split' <-
-      maybe
-        ( throwError <<< pure <<< ParamParseError
-            $ "could not handle url param segment "
-            <> s
-        )
-        pure
-        split
-    value <- parseParam split'.before
-    pure { builder: Builder.insert labelP value, remaining: split'.after }
+    value <- parseParam split.before
+    pure { builder: Builder.insert labelP value, remaining: split.after }
     where
     labelP = SProxy :: SProxy label
 
@@ -137,8 +151,8 @@ instance paramParseURL ::
     s' = drop 1 s
 
     split = case indexOf (Pattern "/") s' of
-      Just idx -> pure $ splitAt idx s'
-      Nothing -> pure { before: s', after: "" }
+      Just idx -> splitAt idx s'
+      Nothing -> { before: s', after: "" }
 
 -- | Typeclass for writing URL segments
 class WriteParam a where
@@ -176,10 +190,10 @@ instance segmentWriteURL ::
 
 instance paramWriteURL ::
   ( IsSymbol label
-  , Cons label ty trash row
-  , WriteParam ty
+  , Cons label paramType trash row
+  , WriteParam paramType
   ) =>
-  WriteURLImpl (Param label ty) row where
+  WriteURLImpl (Param label paramType) row where
   writeURLImpl _ r = "/" <> param
     where
     x = get (SProxy :: SProxy label) r
