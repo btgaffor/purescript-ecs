@@ -15,7 +15,6 @@ import Partial.Unsafe (unsafePartial)
 import Path (type (/), Choice, Param, S, Anything, parseUrl)
 import Storage (class Has, Entity(..), System, get, getStore, initStore)
 import Type.Prelude (Proxy(..))
-import World (runGame)
 
 data Position
   = Position Int
@@ -29,12 +28,6 @@ data World
     , velocities :: Map Entity Velocity
     }
 
-instance hasPosition :: Has World Position (Map Entity Position) where
-  getStore _ = gets $ \(World world) -> world.positions
-
-instance hasVelocity :: Has World Velocity (Map Entity Velocity) where
-  getStore _ = gets $ \(World world) -> world.velocities
-
 initWorld :: World
 initWorld =
   World
@@ -42,12 +35,18 @@ initWorld =
     , velocities: initStore # insert (Entity 5) (Velocity 5)
     }
 
-test :: System World Int
-test = do
+instance hasPosition :: Has World Position (Map Entity Position) where
+  getStore _ = gets $ \(World world) -> world.positions
+
+instance hasVelocity :: Has World Velocity (Map Entity Velocity) where
+  getStore _ = gets $ \(World world) -> world.velocities
+
+runGame :: System World Int
+runGame = do
   Position p /\ Velocity v <- get (Entity 5)
   pure $ p + v
 
 main :: Effect Unit
 main = do
-  p <- evalStateT test initWorld
+  p <- evalStateT runGame initWorld
   log $ show $ p
