@@ -3,42 +3,38 @@ module Main where
 import Prelude
 
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
+import Control.Monad.State (evalStateT, gets)
 import Data.Either (Either(..))
+import Data.Map (Map, empty, insert)
 import Data.Map as DataMap
 import Data.Maybe (fromJust)
 import Data.Tuple (Tuple(..))
+import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Console (log, logShow)
 import Partial.Unsafe (unsafePartial)
 import Path (type (/), Choice, Param, S, Anything, parseUrl)
-import Storage (Position(..), Velocity(..), blah, get)
+import Storage (class Has, Entity(..), System, get, getStore)
 import Type.Prelude (Proxy(..))
+import World (initWorld, runGame)
 
--- main :: Effect Unit
--- main = do
---   p <- runReaderT runGame initWorld
---   log $ show $ p
+data Position = Position Int
+data Velocity = Velocity Int
 
--- myRouteP :: Proxy MyRoute
--- myRouteP = Proxy
+data World = World { positions :: Map Int Position, velocities :: Map Int Velocity }
 
--- main :: Effect Unit
--- main = do
---   case (parseUrl myRouteP "hello/world") of
---     Left err -> log "error"
---     Right obj -> log $ show obj
+instance hasPosition :: Has World Position (Map Int Position) where
+  getStore _ _ = gets (\(World world) -> world.positions)
 
-type MyRoute = S "hello" / Anything / Param "id" Int / Param "name" String / Param "choice" Choice
+instance hasVelocity :: Has World Velocity (Map Int Velocity) where
+  getStore _ _ = gets (\(World world) -> world.velocities)
 
-testUrl :: String
-testUrl = "/hello/wod/1/joe/B"
-
--- main :: Effect Unit
--- main = do
---   case parseUrl (Proxy :: Proxy MyRoute) testUrl of
---     Left e -> log $ "oops: " <> show e
---     Right result ->
---       log $ show result
+test :: System World Int
+test = do
+  Position p /\ Velocity v <- get (Entity 5)
+  pure $ p + v
 
 main :: Effect Unit
-main = logShow blah
+main = do
+  p <- evalStateT test (World { positions: empty # insert 5 (Position 10), velocities: empty # insert 5 (Velocity 5) })
+  log $ show $ p

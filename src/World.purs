@@ -27,7 +27,7 @@ instance showEntity :: Show Entity where
 class Has w c where
   getStore :: System w (DataMap.Map Entity c)
 
--- this will crash if there is no store for that component
+-- this will crash if there is component for that entity
 get :: forall w c. Has w c => Entity -> System w c
 get entity = do
   s <- getStore
@@ -63,11 +63,11 @@ data Map c = Map (DataMap.Map Entity c)
 initWorld :: World
 initWorld = World { positions: DataMap.empty # DataMap.insert (Entity 5) (Position 10), velocities: DataMap.empty # DataMap.insert (Entity 5) (Velocity 20) }
 
-runGame :: forall w. Has w Position => Has w Velocity => System w Int
+runGame :: System World Int
 runGame = do
-  s :: DataMap.Map Entity Position <- getStore
-  let
-    Position p2 = unsafePartial (fromJust (DataMap.lookup (Entity 5) s))
+  -- s :: DataMap.Map Entity Position <- getStore
+  -- let
+  --   Position p2 = unsafePartial (fromJust (DataMap.lookup (Entity 5) s))
   Position p <- get (Entity 5)
   Velocity v <- get (Entity 5)
-  pure $ p + v + p2
+  pure $ p + v
