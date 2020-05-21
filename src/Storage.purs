@@ -20,13 +20,13 @@ instance showEntity :: Show Entity where
   show (Entity value) = show value
 
 class Has w c s | c -> s where
-  getStore :: Proxy w -> Proxy c -> System w s
+  getStore :: Proxy c -> System w s
 
 instance hasTuple :: (Has w c1 s1, Has w c2 s2) => Has w (Tuple c1 c2) (Tuple s1 s2) where
-  getStore _ _ =
+  getStore _ =
     let
-      storage1 = getStore (Proxy :: Proxy w) (Proxy :: Proxy c1)
-      storage2 = getStore (Proxy :: Proxy w) (Proxy :: Proxy c2)
+      storage1 = getStore (Proxy :: Proxy c1)
+      storage2 = getStore (Proxy :: Proxy c2)
     in
     lift2 Tuple storage1 storage2
 
@@ -42,5 +42,5 @@ instance explGetTuple :: (ExplGet s1 c1, ExplGet s2 c2) => ExplGet (Tuple s1 s2)
 
 get :: forall w c s. Has w c s => ExplGet s c => Entity -> System w c
 get entity = do
-  store <- getStore (Proxy :: Proxy w) (Proxy :: Proxy c)
+  store <- getStore (Proxy :: Proxy c)
   pure $ explGet entity store

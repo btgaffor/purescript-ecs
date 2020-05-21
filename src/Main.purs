@@ -24,10 +24,10 @@ data Velocity = Velocity Int
 data World = World { positions :: Map Int Position, velocities :: Map Int Velocity }
 
 instance hasPosition :: Has World Position (Map Int Position) where
-  getStore _ _ = gets (\(World world) -> world.positions)
+  getStore _ = gets (\(World world) -> world.positions)
 
 instance hasVelocity :: Has World Velocity (Map Int Velocity) where
-  getStore _ _ = gets (\(World world) -> world.velocities)
+  getStore _ = gets (\(World world) -> world.velocities)
 
 test :: System World Int
 test = do
