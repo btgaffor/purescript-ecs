@@ -30,6 +30,12 @@ instance hasTuple :: (Has w c1 s1, Has w c2 s2) => Has w (Tuple c1 c2) (Tuple s1
     in
     lift2 Tuple storage1 storage2
 
+class ExplInit s where
+  initStore :: s
+
+instance explInitMap :: ExplInit (Map Int c) where
+  initStore = empty
+
 class ExplGet s c | s -> c where
   explGet :: Entity -> s -> c
 
