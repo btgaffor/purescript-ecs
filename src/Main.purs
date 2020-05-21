@@ -25,21 +25,21 @@ data Velocity
 
 data World
   = World
-    { positions :: Map Int Position
-    , velocities :: Map Int Velocity
+    { positions :: Map Entity Position
+    , velocities :: Map Entity Velocity
     }
 
-instance hasPosition :: Has World Position (Map Int Position) where
+instance hasPosition :: Has World Position (Map Entity Position) where
   getStore _ = gets $ \(World world) -> world.positions
 
-instance hasVelocity :: Has World Velocity (Map Int Velocity) where
+instance hasVelocity :: Has World Velocity (Map Entity Velocity) where
   getStore _ = gets $ \(World world) -> world.velocities
 
 initWorld :: World
 initWorld =
   World
-    { positions: initStore # insert 5 (Position 10)
-    , velocities: initStore # insert 5 (Velocity 5)
+    { positions: initStore # insert (Entity 5) (Position 10)
+    , velocities: initStore # insert (Entity 5) (Velocity 5)
     }
 
 test :: System World Int

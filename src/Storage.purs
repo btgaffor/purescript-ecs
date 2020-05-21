@@ -33,15 +33,15 @@ instance hasTuple :: (Has w c1 s1, Has w c2 s2) => Has w (Tuple c1 c2) (Tuple s1
 class ExplInit s where
   initStore :: s
 
-instance explInitMap :: ExplInit (Map Int c) where
+instance explInitMap :: ExplInit (Map Entity c) where
   initStore = empty
 
 class ExplGet s c | s -> c where
   explGet :: Entity -> s -> c
 
 -- | this will crash if there is component for that entity
-instance explGetMap :: ExplGet (Map Int c) c where
-  explGet (Entity entity) map = unsafePartial $ fromJust (lookup entity map)
+instance explGetMap :: ExplGet (Map Entity c) c where
+  explGet entity map = unsafePartial $ fromJust (lookup entity map)
 
 instance explGetTuple :: (ExplGet s1 c1, ExplGet s2 c2) => ExplGet (Tuple s1 s2) (Tuple c1 c2) where
   explGet entity (Tuple storage1 storage2) = Tuple (explGet entity storage1) (explGet entity storage2)
