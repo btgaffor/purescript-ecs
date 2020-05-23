@@ -1,6 +1,7 @@
 module Main where
 
 import Prelude
+
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Control.Monad.State (evalStateT, gets, lift, modify_)
 import Control.Monad.State as State
@@ -14,7 +15,7 @@ import Effect (Effect)
 import Effect.Console (log, logShow)
 import Partial.Unsafe (unsafePartial)
 import Path (type (/), Choice, Param, S, Anything, parseUrl)
-import Storage (class Has, class PutStore, Entity(..), System, get, getStore, initStore, set)
+import Storage (class Has, class PutStore, Entity(..), System, exists, get, getStore, initStore, members, set)
 import Type.Prelude (Proxy(..))
 
 data Position
@@ -45,7 +46,7 @@ unWorld (World world) = world
 initWorld :: World
 initWorld =
   World
-    { positions: initStore # insert (Entity 5) (Position 10)
+    { positions: initStore # insert (Entity 5) (Position 10) # insert (Entity 6) (Position 6)
     , velocities: initStore # insert (Entity 5) (Velocity 5)
     }
 
@@ -67,6 +68,25 @@ runGame = do
   set (Entity 5) $ (Position $ p1 + v1) /\ (Velocity $ v1 + 1)
   Position p2 /\ Velocity v2 <- get (Entity 5)
   lift $ logShow (p2 /\ v2)
+
+  e <- exists (Entity 5) (Proxy :: Proxy Velocity)
+  lift $ log $ "e: " <> show e
+
+  e2 <- exists (Entity 6) (Proxy :: Proxy Position)
+  lift $ log $ "e2: " <> show e2
+
+  e3 <- exists (Entity 5) (Proxy :: Proxy (Tuple Position Velocity))
+  lift $ log $ "e3: " <> show e3
+
+  e4 <- exists (Entity 6) (Proxy :: Proxy (Tuple Position Velocity))
+  lift $ log $ "e4: " <> show e4
+
+  positionMembers <- members (Proxy :: Proxy Velocity)
+  lift $ logShow positionMembers
+
+  bothMembers <- members (Proxy :: Proxy (Tuple Position Velocity))
+  lift $ log $ "bothMembers: " <> show bothMembers
+
   pure $ p2 + v2
 
 main :: Effect Unit
