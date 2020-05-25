@@ -36,7 +36,7 @@ instance showEntity :: Show Entity where
   show (Entity value) = show value
 
 class Has w c s | c -> s where
-  getStore :: Proxy c -> System w s
+  getStore :: forall m. Monad m => Proxy c -> SystemT w m s
 
 class ExplInit s where
   initStore :: s
@@ -51,7 +51,7 @@ class ExplMembers s where
   explMembers :: s -> List Entity
 
 class PutStore w s where
-  putStore :: s -> System w Unit
+  putStore :: forall m. Monad m => s -> SystemT w m Unit
 
 class ExplSet s c where
   explSet :: s -> Entity -> c -> s
@@ -59,22 +59,22 @@ class ExplSet s c where
 -------------
 -- Systems --
 -------------
-get :: forall w c s. Has w c s => ExplGet s c => Entity -> System w c
+get :: forall w c s m. Monad m => Has w c s => ExplGet s c => Entity -> SystemT w m c
 get entity = do
   store <- getStore (Proxy :: Proxy c)
   pure $ explGet entity store
 
-exists :: forall w c s. Has w c s => ExplExists s => Entity -> Proxy c -> System w Boolean
+exists :: forall w c s m. Monad m => Has w c s => ExplExists s => Entity -> Proxy c -> SystemT w m Boolean
 exists entity proxyC = do
   storage <- getStore proxyC
   pure $ explExists entity storage
 
-members :: forall w c s. Has w c s => ExplMembers s => Proxy c -> System w (List Entity)
+members :: forall w c s m. Monad m => Has w c s => ExplMembers s => Proxy c -> SystemT w m (List Entity)
 members proxyC = do
   storage <- getStore proxyC
   pure $ explMembers storage
 
-set :: forall w c s. Has w c s => ExplSet s c => PutStore w s => Entity -> c -> System w Unit
+set :: forall w c s m. Monad m => Has w c s => ExplSet s c => PutStore w s => Entity -> c -> SystemT w m Unit
 set entity component = do
   store <- getStore (Proxy :: Proxy c)
   newStore <- pure $ explSet store entity component
@@ -82,14 +82,15 @@ set entity component = do
 
 -- TODO: performance measurements on these 2 implementations
 cmap ::
-  forall w c1 c2 s1 s2.
+  forall w c1 c2 s1 s2 m.
+  Monad m =>
   Has w c1 s1 =>
   ExplMembers s1 =>
   ExplGet s1 c1 =>
   Has w c2 s2 =>
   ExplSet s2 c2 =>
   PutStore w s2 =>
-  (c1 -> c2) -> System w Unit
+  (c1 -> c2) -> SystemT w m Unit
 -- cmap transform = do
 --   entities <- members (Proxy :: Proxy c1)
 --   foldM
@@ -119,7 +120,8 @@ cmap f = do
   putStore newS2
 
 newEntity ::
-  forall w s c.
+  forall w s c m.
+  Monad m =>
   Has w c s =>
   ExplSet s c =>
   PutStore w s =>
@@ -127,12 +129,10 @@ newEntity ::
   ExplGet (Global EntityCount) EntityCount =>
   ExplSet (Global EntityCount) EntityCount =>
   PutStore w (Global EntityCount) =>
-  c -> System w Entity
+  c -> SystemT w m Entity
 newEntity component = do
   EntityCount currentCount <- get (Entity 0)
-  storageBefore <- getStore (Proxy :: Proxy c)
   set (Entity currentCount) component
-  storageAfter <- getStore (Proxy :: Proxy c)
   set (Entity 0) (EntityCount $ currentCount + 1)
   pure $ Entity currentCount
 
