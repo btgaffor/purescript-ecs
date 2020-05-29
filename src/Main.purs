@@ -8,7 +8,7 @@ import Data.Map (Map)
 import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Console (log, logShow)
-import Storage (class Has, class PutStore, Entity, EntityCount, Global, SystemT, cmap, get, initStore, newEntity)
+import Ecs (class GetStore, class SaveStore, Entity, EntityCount, Global, SystemT, cmap, get, initStore, newEntity)
 
 data Position
   = Position Int
@@ -45,23 +45,23 @@ initWorld =
     , velocities: initStore
     }
 
-instance hasEntityCounter :: Has World EntityCount (Global EntityCount) where
+instance hasEntityCounter :: GetStore World EntityCount (Global EntityCount) where
   getStore _ = gets (unWorld >>> _.entityCounter)
 
-instance putStoreEntityCounter :: PutStore World (Global EntityCount) where
-  putStore entityCounter = modify_ (unWorld >>> _ { entityCounter = entityCounter } >>> World)
+instance saveStoreEntityCounter :: SaveStore World (Global EntityCount) where
+  saveStore entityCounter = modify_ (unWorld >>> _ { entityCounter = entityCounter } >>> World)
 
-instance hasPosition :: Has World Position (Map Entity Position) where
+instance hasPosition :: GetStore World Position (Map Entity Position) where
   getStore _ = gets (unWorld >>> _.positions)
 
-instance putStorePosition :: PutStore World (Map Entity Position) where
-  putStore positions = modify_ (unWorld >>> _ { positions = positions } >>> World)
+instance saveStorePosition :: SaveStore World (Map Entity Position) where
+  saveStore positions = modify_ (unWorld >>> _ { positions = positions } >>> World)
 
-instance hasVelocity :: Has World Velocity (Map Entity Velocity) where
+instance hasVelocity :: GetStore World Velocity (Map Entity Velocity) where
   getStore _ = gets (unWorld >>> _.velocities)
 
-instance putStoreVelocity :: PutStore World (Map Entity Velocity) where
-  putStore velocities = modify_ (unWorld >>> _ { velocities = velocities } >>> World)
+instance saveStoreVelocity :: SaveStore World (Map Entity Velocity) where
+  saveStore velocities = modify_ (unWorld >>> _ { velocities = velocities } >>> World)
 
 runSubGame :: SystemT World (ContT Unit Effect) Unit
 runSubGame = do

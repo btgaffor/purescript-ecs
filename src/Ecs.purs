@@ -1,4 +1,4 @@
-module Storage where
+module Ecs where
 
 import Prelude
 import Control.Apply (lift2)
@@ -51,7 +51,7 @@ class ExplMembers s where
   explMembers :: s -> List Entity
 
 class SaveStore w s where
-  putStore :: forall m. Monad m => s -> SystemT w m Unit
+  saveStore :: forall m. Monad m => s -> SystemT w m Unit
 
 class ExplSet s c where
   explSet :: s -> Entity -> c -> s
@@ -78,7 +78,7 @@ set :: forall w c s m. Monad m => GetStore w c s => ExplSet s c => SaveStore w s
 set entity component = do
   store <- getStore (Proxy :: Proxy c)
   newStore <- pure $ explSet store entity component
-  putStore newStore
+  saveStore newStore
 
 cmap ::
   forall w c1 c2 s1 s2 m.
@@ -155,8 +155,8 @@ instance explMembersTuple :: (ExplMembers s1, ExplExists s2) => ExplMembers (Tup
     in
       filter (\entity -> explExists entity storage2) members1
 
-instance putStoreTuple :: (SaveStore w s1, SaveStore w s2) => SaveStore w (Tuple s1 s2) where
-  putStore (Tuple storage1 storage2) = putStore storage1 *> putStore storage2
+instance saveStoreTuple :: (SaveStore w s1, SaveStore w s2) => SaveStore w (Tuple s1 s2) where
+  saveStore (Tuple storage1 storage2) = saveStore storage1 *> saveStore storage2
 
 instance explSetTuple :: (ExplSet s1 c1, ExplSet s2 c2) => ExplSet (Tuple s1 s2) (Tuple c1 c2) where
   explSet (Tuple s1 s2) entity (Tuple c1 c2) = Tuple (explSet s1 entity c1) (explSet s2 entity c2)
@@ -166,9 +166,6 @@ instance explSetTuple :: (ExplSet s1 c1, ExplSet s2 c2) => ExplSet (Tuple s1 s2)
 -------------------
 data EntityCount
   = EntityCount Int
-
-instance explInitMap :: ExplInit (Map Entity c) where
-  initStore = empty
 
 instance explInitEntityCounter :: ExplInit (Global EntityCount) where
   initStore = (Global (EntityCount 0))
