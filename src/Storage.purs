@@ -35,7 +35,7 @@ derive instance ordEntity :: Ord Entity
 instance showEntity :: Show Entity where
   show (Entity value) = show value
 
-class Has w c s | c -> s where
+class GetStore w c s | c -> s where
   getStore :: forall m. Monad m => Proxy c -> SystemT w m s
 
 class ExplInit s where
@@ -50,7 +50,7 @@ class ExplExists s where
 class ExplMembers s where
   explMembers :: s -> List Entity
 
-class PutStore w s where
+class SaveStore w s where
   putStore :: forall m. Monad m => s -> SystemT w m Unit
 
 class ExplSet s c where
@@ -59,76 +59,57 @@ class ExplSet s c where
 -------------
 -- Systems --
 -------------
-get :: forall w c s m. Monad m => Has w c s => ExplGet s c => Entity -> SystemT w m c
+get :: forall w c s m. Monad m => GetStore w c s => ExplGet s c => Entity -> SystemT w m c
 get entity = do
   store <- getStore (Proxy :: Proxy c)
   pure $ explGet entity store
 
-exists :: forall w c s m. Monad m => Has w c s => ExplExists s => Entity -> Proxy c -> SystemT w m Boolean
+exists :: forall w c s m. Monad m => GetStore w c s => ExplExists s => Entity -> Proxy c -> SystemT w m Boolean
 exists entity proxyC = do
   storage <- getStore proxyC
   pure $ explExists entity storage
 
-members :: forall w c s m. Monad m => Has w c s => ExplMembers s => Proxy c -> SystemT w m (List Entity)
+members :: forall w c s m. Monad m => GetStore w c s => ExplMembers s => Proxy c -> SystemT w m (List Entity)
 members proxyC = do
   storage <- getStore proxyC
   pure $ explMembers storage
 
-set :: forall w c s m. Monad m => Has w c s => ExplSet s c => PutStore w s => Entity -> c -> SystemT w m Unit
+set :: forall w c s m. Monad m => GetStore w c s => ExplSet s c => SaveStore w s => Entity -> c -> SystemT w m Unit
 set entity component = do
   store <- getStore (Proxy :: Proxy c)
   newStore <- pure $ explSet store entity component
   putStore newStore
 
--- TODO: performance measurements on these 2 implementations
 cmap ::
   forall w c1 c2 s1 s2 m.
   Monad m =>
-  Has w c1 s1 =>
+  GetStore w c1 s1 =>
   ExplMembers s1 =>
   ExplGet s1 c1 =>
-  Has w c2 s2 =>
+  GetStore w c2 s2 =>
   ExplSet s2 c2 =>
-  PutStore w s2 =>
+  SaveStore w s2 =>
   (c1 -> c2) -> SystemT w m Unit
--- cmap transform = do
---   entities <- members (Proxy :: Proxy c1)
---   foldM
---     ( \accumulator entity -> do
---         old <- get entity
---         set entity (transform old)
---     )
---     unit
---     entities
-cmap f = do
-  s1 <- getStore (Proxy :: Proxy c1)
-  initialS2 <- getStore (Proxy :: Proxy c2)
-  let
-    entities = explMembers s1
-  newS2 <-
-    foldM
-      ( \store entity ->
-          let
-            oldComponent = explGet entity s1
-
-            newS2 = explSet store entity (f oldComponent)
-          in
-            pure newS2
-      )
-      initialS2
-      entities
-  putStore newS2
+cmap transform = do
+  entities <- members (Proxy :: Proxy c1)
+  foldM
+    ( \accumulator entity -> do
+        old <- get entity
+        set entity (transform old)
+    )
+    unit
+    entities
 
 newEntity ::
   forall w s c m.
   Monad m =>
-  Has w c s =>
+  GetStore w c s =>
   ExplSet s c =>
-  PutStore w s =>
-  Has w EntityCount (Global EntityCount) =>
+  SaveStore w s =>
+  GetStore w EntityCount (Global EntityCount) =>
   ExplGet (Global EntityCount) EntityCount =>
   ExplSet (Global EntityCount) EntityCount =>
-  PutStore w (Global EntityCount) =>
+  SaveStore w (Global EntityCount) =>
   c -> SystemT w m Entity
 newEntity component = do
   EntityCount currentCount <- get (Entity 0)
@@ -158,7 +139,7 @@ instance explSetMap :: ExplSet (Map Entity c) c where
 -----------
 -- Tuple --
 -----------
-instance hasTuple :: (Has w c1 s1, Has w c2 s2) => Has w (Tuple c1 c2) (Tuple s1 s2) where
+instance hasTuple :: (GetStore w c1 s1, GetStore w c2 s2) => GetStore w (Tuple c1 c2) (Tuple s1 s2) where
   getStore _ = lift2 Tuple (getStore (Proxy :: Proxy c1)) (getStore (Proxy :: Proxy c2))
 
 instance explGetTuple :: (ExplGet s1 c1, ExplGet s2 c2) => ExplGet (Tuple s1 s2) (Tuple c1 c2) where
@@ -174,7 +155,7 @@ instance explMembersTuple :: (ExplMembers s1, ExplExists s2) => ExplMembers (Tup
     in
       filter (\entity -> explExists entity storage2) members1
 
-instance putStoreTuple :: (PutStore w s1, PutStore w s2) => PutStore w (Tuple s1 s2) where
+instance putStoreTuple :: (SaveStore w s1, SaveStore w s2) => SaveStore w (Tuple s1 s2) where
   putStore (Tuple storage1 storage2) = putStore storage1 *> putStore storage2
 
 instance explSetTuple :: (ExplSet s1 c1, ExplSet s2 c2) => ExplSet (Tuple s1 s2) (Tuple c1 c2) where
@@ -186,10 +167,8 @@ instance explSetTuple :: (ExplSet s1 c1, ExplSet s2 c2) => ExplSet (Tuple s1 s2)
 data EntityCount
   = EntityCount Int
 
--- instance explInitMap :: ExplInit (Map Entity c) where
---   initStore = empty
--- instance explInitEntityCounter :: ExplInit (Global c) where
---   initStore = EntityCounter (EntityCount 0)
+instance explInitMap :: ExplInit (Map Entity c) where
+  initStore = empty
 
 instance explInitEntityCounter :: ExplInit (Global EntityCount) where
   initStore = (Global (EntityCount 0))
