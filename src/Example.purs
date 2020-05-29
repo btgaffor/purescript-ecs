@@ -1,4 +1,4 @@
-module Main2 where
+module Example where
 
 import Prelude
 
@@ -7,7 +7,7 @@ import Control.Monad.State (evalStateT, gets, lift, modify_)
 import Data.Map (Map)
 import Data.Tuple.Nested ((/\))
 import Effect (Effect)
-import Effect.Console (log, logShow)
+import Effect.Console (logShow)
 import Ecs (class GetStore, class SaveStore, Entity, EntityCount, Global, SystemT, cmap, get, initStore, newEntity)
 
 data Position
@@ -82,18 +82,9 @@ runGame = do
   value <- lift getAction
   lift <<< lift $ logShow value
 
-main2 :: Effect Unit
-main2 = do
+main :: Effect Unit
+main = do
   runContT (evalStateT runGame initWorld) pure
-
--- main :: Effect Unit
--- main =
---   runContT func pure
---   where
---     func :: ContT Unit Effect Unit
---     func = do
---       action <- getAction
---       lift $ logShow action
 
 getAction :: ContT Unit Effect Int
 getAction = ContT $ \dispatch -> dispatch 3
