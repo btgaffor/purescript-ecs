@@ -1,12 +1,13 @@
-module Main where
+module Main2 where
 
 import Prelude
 
-import Control.Monad.State (evalStateT, gets, modify_)
+import Control.Monad.Cont (ContT(..), runContT)
+import Control.Monad.State (evalStateT, gets, lift, modify_)
 import Data.Map (Map)
 import Data.Tuple.Nested ((/\))
 import Effect (Effect)
-import Effect.Console (log)
+import Effect.Console (log, logShow)
 import Storage (class Has, class PutStore, Entity, EntityCount, Global, SystemT, cmap, get, initStore, newEntity)
 
 data Position
@@ -62,18 +63,37 @@ instance hasVelocity :: Has World Velocity (Map Entity Velocity) where
 instance putStoreVelocity :: PutStore World (Map Entity Velocity) where
   putStore velocities = modify_ (unWorld >>> _ { velocities = velocities } >>> World)
 
-runGame :: SystemT World Effect Int
+runSubGame :: SystemT World (ContT Unit Effect) Unit
+runSubGame = do
+  entity <- newEntity $ Position 5
+  cmap $ \(Position p) -> Position (p + 1)
+  Position p <- get entity
+  lift <<< lift $ logShow p
+  pure unit
+
+runGame :: SystemT World (ContT Unit Effect) Unit
 runGame = do
+  runSubGame
   entity1 <- newEntity $ Position 5 /\ Velocity 2
 
   cmap \(Position p /\ Velocity v) -> Position (p + v) /\ Velocity (v - 1)
   Position p /\ Velocity v <- get entity1
 
-  pure p
+  value <- lift getAction
+  lift <<< lift $ logShow value
 
-main :: Effect Unit
-main = do
-  let
-    (wut :: Effect Int) = evalStateT runGame initWorld
-  p <- evalStateT runGame initWorld
-  log $ "Expected 7, Got: " <> show p
+main2 :: Effect Unit
+main2 = do
+  runContT (evalStateT runGame initWorld) pure
+
+-- main :: Effect Unit
+-- main =
+--   runContT func pure
+--   where
+--     func :: ContT Unit Effect Unit
+--     func = do
+--       action <- getAction
+--       lift $ logShow action
+
+getAction :: ContT Unit Effect Int
+getAction = ContT $ \dispatch -> dispatch 3
