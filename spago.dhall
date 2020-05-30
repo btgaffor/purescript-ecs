@@ -4,7 +4,8 @@ You can edit this file as you like.
 -}
 { name = "purescript-ecs"
 , dependencies =
-  [ "console"
+  [ "canvas"
+  , "console"
   , "effect"
   , "integers"
   , "ordered-collections"
@@ -14,6 +15,7 @@ You can edit this file as you like.
   , "test-unit"
   , "transformers"
   , "typelevel-prelude"
+  , "web-uievents"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
