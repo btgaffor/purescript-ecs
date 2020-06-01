@@ -1,12 +1,13 @@
 module EcsCanvas where
 
 import Prelude
+
 import Control.Monad.Cont (ContT(..), runContT)
 import Control.Monad.State (evalStateT, lift)
 import Data.Maybe (Maybe(..))
 import Ecs (SystemT)
 import Effect (Effect)
-import Effect.Console (error)
+import Effect.Console (error, log)
 import Effect.Ref (Ref, modify_, new, read)
 import Graphics.Canvas (Context2D, clearRect, getCanvasElementById, getContext2D)
 import Web.DOM.Node (toEventTarget)
@@ -27,6 +28,13 @@ canvasHeight = 600.0
 type Keys
   = { arrowLeft :: Boolean
     , arrowRight :: Boolean
+    , space :: Boolean
+    }
+initKeys :: Keys
+initKeys
+  = { arrowLeft: false
+    , arrowRight: false
+    , space: false
     }
 
 handleKeydown :: Ref Keys -> Event -> Effect Unit
@@ -36,7 +44,8 @@ handleKeydown keysRef event = case KeyboardEvent.fromEvent event of
   Just keyboardEvent -> case KeyboardEvent.code keyboardEvent of
     "ArrowLeft" -> modify_ (\s -> s { arrowLeft = true }) keysRef
     "ArrowRight" -> modify_ (\s -> s { arrowRight = true }) keysRef
-    _ -> pure unit
+    "Space" -> modify_ (\s -> s { space = true }) keysRef
+    code -> log code
 
 handleKeyup :: Ref Keys -> Event -> Effect Unit
 handleKeyup keysRef event = case KeyboardEvent.fromEvent event of
@@ -44,6 +53,7 @@ handleKeyup keysRef event = case KeyboardEvent.fromEvent event of
   Just keyboardEvent -> case KeyboardEvent.code keyboardEvent of
     "ArrowLeft" -> modify_ (\s -> s { arrowLeft = false }) keysRef
     "ArrowRight" -> modify_ (\s -> s { arrowRight = false }) keysRef
+    "Space" -> modify_ (\s -> s { space = false }) keysRef
     _ -> pure unit
 
 setupInput :: Ref Keys -> Effect Unit
@@ -60,20 +70,23 @@ setupInput keysRef = do
 type GameSetup w
   = SystemT w (ContT Unit Effect) Unit
 
-type StepFrame w
+type StepFrameKeys w
   = Keys -> SystemT w (ContT Unit Effect) Unit
+
+type StepFrame w
+  = SystemT w (ContT Unit Effect) Unit
 
 type RenderFrame w
   = SystemT w (ContT Unit Effect) (Context2D -> Effect Unit)
 
-runGame :: forall w. GameSetup w -> StepFrame w -> RenderFrame w -> SystemT w (ContT Unit Effect) Unit
+runGame :: forall w. GameSetup w -> StepFrameKeys w -> RenderFrame w -> SystemT w (ContT Unit Effect) Unit
 runGame gameSetup gameFrame renderFrame = do
-  keysRef <- lift <<< lift $ new { arrowLeft: false, arrowRight: false }
+  keysRef <- lift <<< lift $ new initKeys
   lift <<< lift $ setupInput keysRef
   gameSetup
   gameLoop keysRef gameFrame renderFrame
 
-gameLoop :: forall w. Ref Keys -> StepFrame w -> RenderFrame w -> SystemT w (ContT Unit Effect) Unit
+gameLoop :: forall w. Ref Keys -> StepFrameKeys w -> RenderFrame w -> SystemT w (ContT Unit Effect) Unit
 gameLoop keysRef gameFrame renderFrame = loop
   where
   loop = do
@@ -95,7 +108,7 @@ rAF render next = do
       render context
   next unit
 
-runGameEngine :: forall w. Effect w -> GameSetup w -> StepFrame w -> RenderFrame w -> Effect Unit
+runGameEngine :: forall w. Effect w -> GameSetup w -> StepFrameKeys w -> RenderFrame w -> Effect Unit
 runGameEngine initWorld gameSetup gameFrame renderFrame = do
   world <- initWorld
   runContT (evalStateT (runGame gameSetup gameFrame renderFrame) world) pure
