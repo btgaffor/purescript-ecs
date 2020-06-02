@@ -2,14 +2,14 @@ module EcsCanvas where
 
 import Prelude
 
-import Control.Monad.Cont (ContT(..), runContT)
-import Control.Monad.State (evalStateT, lift)
+import Control.Monad.State (evalStateT, execStateT)
 import Data.Maybe (Maybe(..))
 import Ecs (SystemT)
 import Effect (Effect)
 import Effect.Console (error, log)
 import Effect.Ref (Ref, modify_, new, read)
 import Graphics.Canvas (Context2D, clearRect, getCanvasElementById, getContext2D)
+import Model (World)
 import Web.DOM.Node (toEventTarget)
 import Web.Event.Event (Event, EventType(..))
 import Web.Event.EventTarget (addEventListener, eventListener)
@@ -68,48 +68,45 @@ setupInput keysRef = do
       addEventListener (EventType "keyup") keyupListener false (toEventTarget $ HTML.HTMLElement.toNode body')
 
 type GameSetup w
-  = SystemT w (ContT Unit Effect) Unit
+  = SystemT w Effect Unit
 
 type StepFrameKeys w
-  = Keys -> SystemT w (ContT Unit Effect) Unit
+  = Keys -> SystemT w Effect Unit
 
 type StepFrame w
-  = SystemT w (ContT Unit Effect) Unit
+  = SystemT w Effect Unit
 
 type RenderFrame w
-  = SystemT w (ContT Unit Effect) (Context2D -> Effect Unit)
+  = SystemT w Effect (Context2D -> Effect Unit)
 
-runGame :: forall w. GameSetup w -> StepFrameKeys w -> RenderFrame w -> SystemT w (ContT Unit Effect) Unit
-runGame gameSetup gameFrame renderFrame = do
-  keysRef <- lift <<< lift $ new initKeys
-  lift <<< lift $ setupInput keysRef
-  gameSetup
-  gameLoop keysRef gameFrame renderFrame
-
-gameLoop :: forall w. Ref Keys -> StepFrameKeys w -> RenderFrame w -> SystemT w (ContT Unit Effect) Unit
-gameLoop keysRef gameFrame renderFrame = loop
+startLoop :: Ref Keys -> World -> StepFrameKeys World -> RenderFrame World -> Effect Unit
+startLoop keysRef initialState stepFrame renderFrame = do
+  w <- HTML.window
+  void $ HTML.Window.requestAnimationFrame (loop initialState) w
   where
-  loop = do
-    keys <- lift <<< lift $ read keysRef
-    gameFrame keys
-    renderer <- renderFrame
-    w <- lift <<< lift $ HTML.window
-    lift $ ContT $ \next -> void $ HTML.Window.requestAnimationFrame (rAF renderer next) w
-    loop
+    loop state = do
+      keys <- read keysRef
+      newState <- execStateT (stepFrame keys) state
 
-rAF :: (Context2D -> Effect Unit) -> (Unit -> Effect Unit) -> Effect Unit
-rAF render next = do
-  mCanvas <- getCanvasElementById "canvas"
-  case mCanvas of
-    Nothing -> error "No canvas"
-    Just canvas -> do
-      context <- getContext2D canvas
-      clearRect context { x: 0.0, y: 0.0, width: canvasWidth, height: canvasHeight }
-      render context
-  next unit
+      w <- HTML.window
+      void $ HTML.Window.requestAnimationFrame (loop newState) w
 
-runGameEngine :: forall w. Effect w -> GameSetup w -> StepFrameKeys w -> RenderFrame w -> Effect Unit
+      mCanvas <- getCanvasElementById "canvas"
+      case mCanvas of
+        Nothing -> error "No canvas"
+        Just canvas -> do
+          context <- getContext2D canvas
+          clearRect context { x: 0.0, y: 0.0, width: canvasWidth, height: canvasHeight }
+          renderer <- evalStateT renderFrame newState
+          renderer context
+
+
+
+runGameEngine :: Effect World -> GameSetup World -> StepFrameKeys World -> RenderFrame World -> Effect Unit
 runGameEngine initWorld gameSetup gameFrame renderFrame = do
   world <- initWorld
-  runContT (evalStateT (runGame gameSetup gameFrame renderFrame) world) pure
+  keysRef <- new initKeys
+  setupInput keysRef
+  initialState <- execStateT gameSetup world
+  startLoop keysRef initialState gameFrame renderFrame
   pure unit
