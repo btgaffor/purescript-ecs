@@ -7,7 +7,7 @@ import Data.Maybe (Maybe(..))
 import Ecs (SystemT)
 import Effect (Effect)
 import Effect.Console (error, log)
-import Effect.Ref (Ref, modify_, new, read)
+import Effect.Ref (Ref, modify_, new)
 import Graphics.Canvas (Context2D, clearRect, getCanvasElementById, getContext2D)
 import Model (World)
 import Web.DOM.Node (toEventTarget)
@@ -71,7 +71,7 @@ type GameSetup w
   = SystemT w Effect Unit
 
 type StepFrameKeys w
-  = Keys -> SystemT w Effect Unit
+  = Ref Keys -> SystemT w Effect Unit
 
 type StepFrame w
   = SystemT w Effect Unit
@@ -85,8 +85,7 @@ startLoop keysRef initialState stepFrame renderFrame = do
   void $ HTML.Window.requestAnimationFrame (loop initialState) w
   where
     loop state = do
-      keys <- read keysRef
-      newState <- execStateT (stepFrame keys) state
+      newState <- execStateT (stepFrame keysRef) state
 
       w <- HTML.window
       void $ HTML.Window.requestAnimationFrame (loop newState) w
