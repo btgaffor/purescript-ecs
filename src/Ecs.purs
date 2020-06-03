@@ -21,6 +21,10 @@ import Type.Prelude (Proxy(..))
 data Entity
   = Entity Int
 
+-- alias for accessing global stores, since the entity doesn't matter
+global :: Int
+global = 0
+
 instance showEntity :: Show Entity where
   show (Entity value) = "(Entity " <> show value <> ")"
 
