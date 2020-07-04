@@ -5,7 +5,7 @@ import Prelude
 import Control.Apply (lift2)
 import Control.Monad.State (StateT)
 import Data.Either (Either(..))
-import Data.Foldable (foldM, foldl)
+import Data.Foldable (foldM, foldMap, foldl)
 import Data.List (List(..), filter, singleton)
 import Data.Map (Map, delete, empty, insert, lookup)
 import Data.Map.Internal (keys)
@@ -194,11 +194,21 @@ cmapM_ transform = do
     unit
     entities
 
-cfold :: forall w m s c a. Monad m => GetStore w c s => ExplMembers s => ExplGet s c => (a -> c -> a) -> a -> SystemT w m a
+cfold ::
+  forall w m s c a. Monad m => GetStore w c s => ExplMembers s => ExplGet s c =>
+  (a -> c -> a) -> a -> SystemT w m a
 cfold combiner accumulator0 = do
   store <- getStore (Proxy :: Proxy c)
   let entities = explMembers store
   pure $ foldl (\accumulator entity -> combiner accumulator (explGet entity store)) accumulator0 entities
+
+cfoldMap ::
+  forall w m s c r. Monad m => Monoid r => GetStore w c s => ExplMembers s => ExplGet s c =>
+  (c -> r) -> SystemT w m r
+cfoldMap mapper = do
+  store <- getStore (Proxy :: Proxy c)
+  let entities = explMembers store
+  pure $ foldMap (\entity -> mapper (explGet entity store)) entities
 
 newEntity ::
   forall w s c m.

@@ -1,111 +1,91 @@
 module EcsCanvas where
 
 import Prelude
-
-import Control.Monad.State (evalStateT, execStateT)
-import Data.Maybe (Maybe(..))
-import Ecs (SystemT)
+import Control.Monad.Reader (ReaderT, ask, lift)
 import Effect (Effect)
-import Effect.Console (error, log)
-import Effect.Ref (Ref, modify_, new)
-import Graphics.Canvas (Context2D, clearRect, getCanvasElementById, getContext2D)
-import Model (World)
-import Web.DOM.Node (toEventTarget)
-import Web.Event.Event (Event, EventType(..))
-import Web.Event.EventTarget (addEventListener, eventListener)
-import Web.HTML (window) as HTML
-import Web.HTML.HTMLDocument (body) as HTML
-import Web.HTML.HTMLElement as HTML.HTMLElement
-import Web.HTML.Window as HTML.Window
-import Web.UIEvent.KeyboardEvent as KeyboardEvent
+import Graphics.Canvas (Arc, Context2D, Rectangle, BezierCurve, arc, closePath, fill, fillText, lineTo, moveTo, rect, setFillStyle, setFont, beginPath, bezierCurveTo) as Canvas
 
-canvasWidth :: Number
-canvasWidth = 800.0
+setFillStyle :: String -> ReaderT Canvas.Context2D Effect Unit
+setFillStyle style = do
+  ctx <- ask
+  lift $ Canvas.setFillStyle ctx style
 
-canvasHeight :: Number
-canvasHeight = 600.0
+setFont :: String -> ReaderT Canvas.Context2D Effect Unit
+setFont style = do
+  ctx <- ask
+  lift $ Canvas.setFont ctx style
 
-type Keys
-  = { arrowLeft :: Boolean
-    , arrowRight :: Boolean
-    , space :: Boolean
+fillText :: String -> Number -> Number -> ReaderT Canvas.Context2D Effect Unit
+fillText value x y = do
+  ctx <- ask
+  lift $ Canvas.fillText ctx value x y
+
+beginPath :: ReaderT Canvas.Context2D Effect Unit
+beginPath = do
+  ctx <- ask
+  lift $ Canvas.beginPath ctx
+
+moveTo :: Number -> Number -> ReaderT Canvas.Context2D Effect Unit
+moveTo x y = do
+  ctx <- ask
+  lift $ Canvas.moveTo ctx x y
+
+lineTo :: Number -> Number -> ReaderT Canvas.Context2D Effect Unit
+lineTo x y = do
+  ctx <- ask
+  lift $ Canvas.lineTo ctx x y
+
+closePath :: ReaderT Canvas.Context2D Effect Unit
+closePath = do
+  ctx <- ask
+  lift $ Canvas.closePath ctx
+
+arc :: Canvas.Arc -> ReaderT Canvas.Context2D Effect Unit
+arc arcDef = do
+  ctx <- ask
+  lift $ Canvas.arc ctx arcDef
+
+rect :: Canvas.Rectangle -> ReaderT Canvas.Context2D Effect Unit
+rect rectDef = do
+  ctx <- ask
+  lift $ Canvas.rect ctx rectDef
+
+fill :: ReaderT Canvas.Context2D Effect Unit
+fill = do
+  ctx <- ask
+  lift $ Canvas.fill ctx
+
+bezierCurveTo :: Canvas.BezierCurve -> ReaderT Canvas.Context2D Effect Unit
+bezierCurveTo curve = do
+  ctx <- ask
+  lift $ Canvas.bezierCurveTo ctx curve
+
+renderEllipse :: Number -> Number -> Number -> Number -> ReaderT Canvas.Context2D Effect Unit
+renderEllipse x y width height = do
+  ctx <- ask
+  let
+    widthOver2 = width / 2.0
+
+    widthTwoThirds = width * 2.0 / 3.0
+
+    heightOver2 = height / 2.0
+  beginPath
+  moveTo x (y - heightOver2)
+  bezierCurveTo
+    { cp1x: x + widthTwoThirds
+    , cp1y: y - heightOver2
+    , cp2x: x + widthTwoThirds
+    , cp2y: y + heightOver2
+    , x
+    , y: y + heightOver2
     }
-initKeys :: Keys
-initKeys
-  = { arrowLeft: false
-    , arrowRight: false
-    , space: false
+  bezierCurveTo
+    { cp1x: x - widthTwoThirds
+    , cp1y: y + heightOver2
+    , cp2x: x - widthTwoThirds
+    , cp2y: y - heightOver2
+    , x
+    , y: y - heightOver2
     }
-
-handleKeydown :: Ref Keys -> Event -> Effect Unit
-handleKeydown keysRef event = case KeyboardEvent.fromEvent event of
-  Nothing -> pure unit
-  -- Just keyboardEvent -> log $ "keydown: " <> KeyboardEvent.code keyboardEvent
-  Just keyboardEvent -> case KeyboardEvent.code keyboardEvent of
-    "ArrowLeft" -> modify_ (\s -> s { arrowLeft = true }) keysRef
-    "ArrowRight" -> modify_ (\s -> s { arrowRight = true }) keysRef
-    "Space" -> modify_ (\s -> s { space = true }) keysRef
-    code -> log code
-
-handleKeyup :: Ref Keys -> Event -> Effect Unit
-handleKeyup keysRef event = case KeyboardEvent.fromEvent event of
-  Nothing -> pure unit
-  Just keyboardEvent -> case KeyboardEvent.code keyboardEvent of
-    "ArrowLeft" -> modify_ (\s -> s { arrowLeft = false }) keysRef
-    "ArrowRight" -> modify_ (\s -> s { arrowRight = false }) keysRef
-    "Space" -> modify_ (\s -> s { space = false }) keysRef
-    _ -> pure unit
-
-setupInput :: Ref Keys -> Effect Unit
-setupInput keysRef = do
-  keydownListener <- eventListener (handleKeydown keysRef)
-  keyupListener <- eventListener (handleKeyup keysRef)
-  mBody <- HTML.body =<< HTML.Window.document =<< HTML.window
-  case mBody of
-    Nothing -> error "no body element to attach event listener to"
-    Just body' -> do
-      addEventListener (EventType "keydown") keydownListener false (toEventTarget $ HTML.HTMLElement.toNode body')
-      addEventListener (EventType "keyup") keyupListener false (toEventTarget $ HTML.HTMLElement.toNode body')
-
-type GameSetup w
-  = SystemT w Effect Unit
-
-type StepFrameKeys w
-  = Ref Keys -> SystemT w Effect Unit
-
-type StepFrame w
-  = SystemT w Effect Unit
-
-type RenderFrame w
-  = SystemT w Effect (Context2D -> Effect Unit)
-
-startLoop :: Ref Keys -> World -> StepFrameKeys World -> RenderFrame World -> Effect Unit
-startLoop keysRef initialState stepFrame renderFrame = do
-  w <- HTML.window
-  void $ HTML.Window.requestAnimationFrame (loop initialState) w
-  where
-    loop state = do
-      newState <- execStateT (stepFrame keysRef) state
-
-      w <- HTML.window
-      void $ HTML.Window.requestAnimationFrame (loop newState) w
-
-      mCanvas <- getCanvasElementById "canvas"
-      case mCanvas of
-        Nothing -> error "No canvas"
-        Just canvas -> do
-          context <- getContext2D canvas
-          clearRect context { x: 0.0, y: 0.0, width: canvasWidth, height: canvasHeight }
-          renderer <- evalStateT renderFrame newState
-          renderer context
-
-
-
-runGameEngine :: Effect World -> GameSetup World -> StepFrameKeys World -> RenderFrame World -> Effect Unit
-runGameEngine initWorld gameSetup gameFrame renderFrame = do
-  world <- initWorld
-  keysRef <- new initKeys
-  setupInput keysRef
-  initialState <- execStateT gameSetup world
-  startLoop keysRef initialState gameFrame renderFrame
-  pure unit
+  closePath
+  fill
