@@ -1,9 +1,20 @@
 module EcsCanvas where
 
 import Prelude
-import Control.Monad.Reader (ReaderT, ask, lift)
+import Control.Monad.Reader (ReaderT, ask, lift, runReaderT)
 import Effect (Effect)
-import Graphics.Canvas (Arc, Context2D, Rectangle, BezierCurve, arc, closePath, fill, fillText, lineTo, moveTo, rect, setFillStyle, setFont, beginPath, bezierCurveTo) as Canvas
+import Graphics.Canvas (Arc, Context2D, Rectangle, arc, beginPath, closePath, fill, fillPath, fillText, lineTo, moveTo, rect, setFillStyle, setFont, withContext, bezierCurveTo) as Canvas
+import Graphics.Canvas (BezierCurve)
+
+withContext :: ReaderT Canvas.Context2D Effect Unit -> ReaderT Canvas.Context2D Effect Unit
+withContext action = do
+  ctx <- ask
+  lift $ Canvas.withContext ctx (runReaderT action ctx)
+
+fillPath :: ReaderT Canvas.Context2D Effect Unit -> ReaderT Canvas.Context2D Effect Unit
+fillPath action = do
+  ctx <- ask
+  lift $ Canvas.fillPath ctx (runReaderT action ctx)
 
 setFillStyle :: String -> ReaderT Canvas.Context2D Effect Unit
 setFillStyle style = do
@@ -41,21 +52,21 @@ closePath = do
   lift $ Canvas.closePath ctx
 
 arc :: Canvas.Arc -> ReaderT Canvas.Context2D Effect Unit
-arc arcDef = do
+arc arcPath = do
   ctx <- ask
-  lift $ Canvas.arc ctx arcDef
+  lift $ Canvas.arc ctx arcPath
 
 rect :: Canvas.Rectangle -> ReaderT Canvas.Context2D Effect Unit
-rect rectDef = do
+rect rectPath = do
   ctx <- ask
-  lift $ Canvas.rect ctx rectDef
+  lift $ Canvas.rect ctx rectPath
 
 fill :: ReaderT Canvas.Context2D Effect Unit
 fill = do
   ctx <- ask
   lift $ Canvas.fill ctx
 
-bezierCurveTo :: Canvas.BezierCurve -> ReaderT Canvas.Context2D Effect Unit
+bezierCurveTo :: BezierCurve -> ReaderT Canvas.Context2D Effect Unit
 bezierCurveTo curve = do
   ctx <- ask
   lift $ Canvas.bezierCurveTo ctx curve
@@ -69,23 +80,22 @@ renderEllipse x y width height = do
     widthTwoThirds = width * 2.0 / 3.0
 
     heightOver2 = height / 2.0
-  beginPath
-  moveTo x (y - heightOver2)
-  bezierCurveTo
-    { cp1x: x + widthTwoThirds
-    , cp1y: y - heightOver2
-    , cp2x: x + widthTwoThirds
-    , cp2y: y + heightOver2
-    , x
-    , y: y + heightOver2
-    }
-  bezierCurveTo
-    { cp1x: x - widthTwoThirds
-    , cp1y: y + heightOver2
-    , cp2x: x - widthTwoThirds
-    , cp2y: y - heightOver2
-    , x
-    , y: y - heightOver2
-    }
-  closePath
-  fill
+  fillPath do
+    moveTo x (y - heightOver2)
+    bezierCurveTo
+      { cp1x: x + widthTwoThirds
+      , cp1y: y - heightOver2
+      , cp2x: x + widthTwoThirds
+      , cp2y: y + heightOver2
+      , x
+      , y: y + heightOver2
+      }
+    bezierCurveTo
+      { cp1x: x - widthTwoThirds
+      , cp1y: y + heightOver2
+      , cp2x: x - widthTwoThirds
+      , cp2y: y - heightOver2
+      , x
+      , y: y - heightOver2
+      }
+    closePath
